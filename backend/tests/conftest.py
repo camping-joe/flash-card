@@ -3,6 +3,7 @@ import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy import text
+from sqlalchemy.pool import NullPool
 from app.main import app
 from app.core.config import settings
 from app.models.models import Base
@@ -25,10 +26,10 @@ CLEANUP_TABLES = [
 ]
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture
 async def test_engine():
-    """session 级别的 engine，测试结束后统一释放"""
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    """function 级别的 engine，每个测试独立创建和释放，避免连接冲突"""
+    engine = create_async_engine(TEST_DATABASE_URL, echo=False, poolclass=NullPool)
     yield engine
     await engine.dispose()
 
