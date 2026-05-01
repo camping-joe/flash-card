@@ -130,7 +130,7 @@ deploy_backend() {
             backend/ "$RPI_HOST:$RPI_BACKEND_DIR/"
     else
         warn "rsync 未安装，使用 tar+ssh 管道作为备选..."
-        tar czf - -C backend . \
+        tar czf - \
             --exclude='.venv' \
             --exclude='__pycache__' \
             --exclude='*.pyc' \
@@ -138,6 +138,7 @@ deploy_backend() {
             --exclude='.env' \
             --exclude='*.db' \
             --exclude='tests/' \
+            -C backend . \
             | ssh $SSH_OPTS "$RPI_HOST" "mkdir -p '$RPI_BACKEND_DIR' && tar xzf - -C '$RPI_BACKEND_DIR'"
     fi
 
