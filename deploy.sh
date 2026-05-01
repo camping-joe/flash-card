@@ -9,11 +9,11 @@ set -euo pipefail
 
 # ---------- 配置区（请根据你的环境修改） ----------
 RPI_HOST="rpi"                           # ~/.ssh/config 中的 Host 别名
-RPI_BACKEND_DIR="/opt/flash-card/backend"
+RPI_BACKEND_DIR="/home/joe/flash-card-backend"
 RPI_FRONTEND_DIR="/home/joe/flash-card-web"
 SYSTEMD_SERVICE="flashcard-api.service"
 WEB_SERVICE="flashcard-web.service"
-PYTHON_VENV="$RPI_BACKEND_DIR/.venv"
+PYTHON_VENV="$RPI_BACKEND_DIR/venv"
 BACKEND_PORT="8887"
 HEALTH_CHECK_URL="http://192.168.3.11:$BACKEND_PORT/docs"
 # 修复 .ssh/config 中 RemoteCommand/RequestTTY 与非交互式命令冲突
