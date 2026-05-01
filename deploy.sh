@@ -16,6 +16,8 @@ WEB_SERVICE="flashcard-web.service"
 PYTHON_VENV="$RPI_BACKEND_DIR/.venv"
 BACKEND_PORT="8887"
 HEALTH_CHECK_URL="http://192.168.3.11:$BACKEND_PORT/docs"
+# 修复 .ssh/config 中 RemoteCommand/RequestTTY 与非交互式命令冲突
+SSH_OPTS="-o RemoteCommand=none -o RequestTTY=no"
 # --------------------------------------------------
 
 # 颜色输出
@@ -66,13 +68,25 @@ check_git() {
 run_tests() {
     info "运行后端测试..."
     cd backend
+
+    # 优先使用 venv 中的 Python（兼容 Windows Git Bash）
+    local py_cmd="python"
+    if [ -f "venv/Scripts/python.exe" ]; then
+        py_cmd="venv/Scripts/python.exe"
+    elif [ -f ".venv/Scripts/python.exe" ]; then
+        py_cmd=".venv/Scripts/python.exe"
+    elif [ -f "venv/bin/python" ]; then
+        py_cmd="venv/bin/python"
+    elif [ -f ".venv/bin/python" ]; then
+        py_cmd=".venv/bin/python"
+    fi
+
     if [ -f "requirements.txt" ]; then
-        # 检查 pytest 是否可用
-        if ! python -m pytest --version > /dev/null 2>&1; then
+        if ! $py_cmd -m pytest --version > /dev/null 2>&1; then
             warn "本地未安装 pytest，尝试安装..."
-            pip install pytest pytest-asyncio > /dev/null 2>&1 || error "安装 pytest 失败"
+            $py_cmd -m pip install pytest pytest-asyncio > /dev/null 2>&1 || error "安装 pytest 失败"
         fi
-        python -m pytest -q || error "后端测试失败"
+        $py_cmd -m pytest -q || error "后端测试失败"
     else
         warn "backend/requirements.txt 不存在，跳过后端测试"
     fi
@@ -93,8 +107,8 @@ run_tests() {
 # ---------- 3. SSH 连接检查 ----------
 check_ssh() {
     info "检查 SSH 连接到树莓派 ($RPI_HOST)..."
-    if ! ssh -o ConnectTimeout=5 "$RPI_HOST" "echo OK" > /dev/null 2>&1; then
-        error "无法通过 SSH 连接到 $RPI_HOST。请检查：\n  1. 树莓派是否开机且网络通畅\n  2. ~/.ssh/config 配置是否正确\n  3. ssh-agent 是否已加载私钥（ssh-add -l）"
+    if ! ssh $SSH_OPTS -o ConnectTimeout=5 "$RPI_HOST" "echo OK" > /dev/null 2>&1; then
+        error "无法通过 SSH 连接到 $RPI_HOST。请检查：\n  1. 树莓派是否开机且网络通畅\n  2. ~/.ssh/config 配置是否正确\n  3. 私钥是否已加载（Windows 可运行 ssh-add）"
     fi
     ok "SSH 连接正常"
 }
@@ -104,7 +118,7 @@ deploy_backend() {
     info "部署后端到树莓派..."
 
     # 同步代码（排除不需要的文件）
-    rsync -avz \
+    rsync -avz -e "ssh $SSH_OPTS" \
         --exclude='.venv' \
         --exclude='__pycache__' \
         --exclude='*.pyc' \
@@ -116,7 +130,7 @@ deploy_backend() {
         backend/ "$RPI_HOST:$RPI_BACKEND_DIR/"
 
     # 在树莓派上安装依赖并重启服务
-    ssh "$RPI_HOST" "
+    ssh $SSH_OPTS "$RPI_HOST" "
         set -e
         echo '安装 Python 依赖...'
         if [ ! -d '$PYTHON_VENV' ]; then
@@ -163,10 +177,10 @@ deploy_frontend() {
     cd ..
 
     info "部署前端到树莓派..."
-    rsync -avz --delete web-admin/dist/ "$RPI_HOST:$RPI_FRONTEND_DIR/"
+    rsync -avz -e "ssh $SSH_OPTS" --delete web-admin/dist/ "$RPI_HOST:$RPI_FRONTEND_DIR/"
 
     # 重启前端服务
-    ssh "$RPI_HOST" "sudo systemctl restart $WEB_SERVICE && sudo systemctl status $WEB_SERVICE --no-pager"
+    ssh $SSH_OPTS "$RPI_HOST" "sudo systemctl restart $WEB_SERVICE && sudo systemctl status $WEB_SERVICE --no-pager"
 
     ok "前端部署完成"
 }
