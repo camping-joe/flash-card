@@ -1,0 +1,11 @@
+{
+  "id": "flashcard-sync",
+  "name": "闪卡同步",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "将 Obsidian 笔记自动同步到闪卡学习系统",
+  "author": "User",
+  "authorUrl": "",
+  "fundingUrl": "",
+  "isDesktopOnly": false
+}

@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(alembic revision *)",
+      "Bash(./venv/Scripts/alembic.exe revision *)",
+      "Bash(git *)",
+      "Bash(java -version)",
+      "Bash(curl *)",
+      "Bash(unzip *)",
+      "Bash(powershell.exe *)",
+      "Bash(yes)",
+      "Bash(JAVA_HOME=/c/Users/Administrator/jdk-17 /c/Users/Administrator/android-sdk/cmdline-tools/latest/bin/sdkmanager.bat --sdk_root=/c/Users/Administrator/android-sdk --licenses)",
+      "Bash(/c/Users/Administrator/flutter/bin/flutter config *)",
+      "Bash(JAVA_HOME=/c/Users/Administrator/jdk-17 /c/Users/Administrator/flutter/bin/flutter doctor *)",
+      "Bash(ssh -o BatchMode=yes -o ConnectTimeout=5 rpi \"echo connected\")"
+    ]
+  }
+}
