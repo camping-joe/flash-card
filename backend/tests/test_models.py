@@ -10,7 +10,7 @@ def test_note_model():
     assert Note.__tablename__ == "notes"
     assert hasattr(Note, "title")
     assert hasattr(Note, "content")
-    assert hasattr(Note, "flashcards")
+    # 闪卡已改为关联 Library，不再直接关联 Note
 
 def test_flashcard_model():
     assert Flashcard.__tablename__ == "flashcards"
