@@ -65,7 +65,7 @@ check_git() {
 }
 
 # ---------- 2. 测试 ----------
-run_tests() {
+run_backend_tests() {
     info "运行后端测试..."
     cd backend
 
@@ -92,7 +92,9 @@ run_tests() {
     fi
     cd ..
     ok "后端测试通过"
+}
 
+run_mobile_tests() {
     info "运行移动端测试..."
     cd mobile
     if command -v flutter > /dev/null 2>&1; then
@@ -230,6 +232,70 @@ build_apk() {
     cd ..
 }
 
+# ---------- 变更检测 ----------
+detect_changes() {
+    local changed_files
+    changed_files=$(git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null || echo "")
+
+    if [[ -z "$changed_files" ]]; then
+        warn "无法获取变更文件列表，将执行全部步骤"
+        return
+    fi
+
+    if echo "$changed_files" | grep -q "^backend/"; then
+        RUN_BACKEND=true
+        info "检测到 backend/ 变更，将执行后端测试与部署"
+    fi
+    if echo "$changed_files" | grep -q "^web-admin/"; then
+        RUN_FRONTEND=true
+        info "检测到 web-admin/ 变更，将执行前端构建与部署"
+    fi
+    if echo "$changed_files" | grep -q "^mobile/"; then
+        RUN_MOBILE=true
+        info "检测到 mobile/ 变更，将执行移动端测试与 APK 构建"
+    fi
+
+    # 根目录或其他目录的变更可能影响全部组件
+    if [[ "$RUN_BACKEND" == false && "$RUN_FRONTEND" == false && "$RUN_MOBILE" == false ]]; then
+        info "检测到根目录文件变更，执行全部部署步骤"
+        RUN_BACKEND=true
+        RUN_FRONTEND=true
+        RUN_MOBILE=true
+    fi
+}
+
+# ---------- 参数解析 ----------
+SKIP_GIT_CHECK=false
+DETECT_CHANGES=false
+SKIP_BACKEND=false
+SKIP_FRONTEND=false
+SKIP_APK=false
+
+for arg in "$@"; do
+    case $arg in
+        --skip-git-check)
+            SKIP_GIT_CHECK=true
+            shift
+            ;;
+        --detect-changes)
+            DETECT_CHANGES=true
+            shift
+            ;;
+        --skip-backend)
+            SKIP_BACKEND=true
+            shift
+            ;;
+        --skip-frontend)
+            SKIP_FRONTEND=true
+            shift
+            ;;
+        --skip-apk)
+            SKIP_APK=true
+            shift
+            ;;
+    esac
+done
+
 # ---------- 主流程 ----------
 main() {
     echo "========================================"
@@ -237,12 +303,73 @@ main() {
     echo "========================================"
     echo ""
 
-    check_git
-    run_tests
-    check_ssh
-    deploy_backend
-    deploy_frontend
-    build_apk
+    if [[ "$SKIP_GIT_CHECK" != true ]]; then
+        check_git
+    else
+        info "跳过 Git 检查（由 hook 触发）"
+    fi
+
+    # 默认全量部署
+    RUN_BACKEND=true
+    RUN_FRONTEND=true
+    RUN_MOBILE=true
+
+    # 智能检测变更范围
+    if [[ "$DETECT_CHANGES" == true ]]; then
+        RUN_BACKEND=false
+        RUN_FRONTEND=false
+        RUN_MOBILE=false
+        detect_changes
+    fi
+
+    # 应用手动跳过参数
+    if [[ "$SKIP_BACKEND" == true ]]; then
+        RUN_BACKEND=false
+        info "手动跳过后端部署"
+    fi
+    if [[ "$SKIP_FRONTEND" == true ]]; then
+        RUN_FRONTEND=false
+        info "手动跳过前端部署"
+    fi
+    if [[ "$SKIP_APK" == true ]]; then
+        RUN_MOBILE=false
+        info "手动跳过 APK 构建"
+    fi
+
+    # 汇总本次执行内容
+    echo ""
+    info "本次执行步骤："
+    [[ "$RUN_BACKEND" == true ]] && echo "  - 后端测试 + 部署"
+    [[ "$RUN_FRONTEND" == true ]] && echo "  - 前端构建 + 部署"
+    [[ "$RUN_MOBILE" == true ]] && echo "  - 移动端测试 + APK 构建"
+    if [[ "$RUN_BACKEND" != true && "$RUN_FRONTEND" != true && "$RUN_MOBILE" != true ]]; then
+        ok "没有需要执行的步骤，跳过部署"
+        echo "========================================"
+        return 0
+    fi
+    echo ""
+
+    # 执行 SSH 检查（只要需要部署就需要 SSH）
+    if [[ "$RUN_BACKEND" == true || "$RUN_FRONTEND" == true ]]; then
+        check_ssh
+    fi
+
+    # 后端
+    if [[ "$RUN_BACKEND" == true ]]; then
+        run_backend_tests
+        deploy_backend
+    fi
+
+    # 前端
+    if [[ "$RUN_FRONTEND" == true ]]; then
+        deploy_frontend
+    fi
+
+    # 移动端（APK 构建）
+    if [[ "$RUN_MOBILE" == true ]]; then
+        run_mobile_tests
+        build_apk
+    fi
 
     echo "========================================"
     ok "全部部署完成！"
