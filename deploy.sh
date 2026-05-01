@@ -117,17 +117,29 @@ check_ssh() {
 deploy_backend() {
     info "部署后端到树莓派..."
 
-    # 同步代码（排除不需要的文件）
-    rsync -avz -e "ssh $SSH_OPTS" \
-        --exclude='.venv' \
-        --exclude='__pycache__' \
-        --exclude='*.pyc' \
-        --exclude='.git' \
-        --exclude='.env' \
-        --exclude='*.db' \
-        --exclude='tests/' \
-        --delete \
-        backend/ "$RPI_HOST:$RPI_BACKEND_DIR/"
+    if command -v rsync > /dev/null 2>&1; then
+        rsync -avz -e "ssh $SSH_OPTS" \
+            --exclude='.venv' \
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
+            --exclude='.git' \
+            --exclude='.env' \
+            --exclude='*.db' \
+            --exclude='tests/' \
+            --delete \
+            backend/ "$RPI_HOST:$RPI_BACKEND_DIR/"
+    else
+        warn "rsync 未安装，使用 tar+ssh 管道作为备选..."
+        tar czf - -C backend . \
+            --exclude='.venv' \
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
+            --exclude='.git' \
+            --exclude='.env' \
+            --exclude='*.db' \
+            --exclude='tests/' \
+            | ssh $SSH_OPTS "$RPI_HOST" "mkdir -p '$RPI_BACKEND_DIR' && tar xzf - -C '$RPI_BACKEND_DIR'"
+    fi
 
     # 在树莓派上安装依赖并重启服务
     ssh $SSH_OPTS "$RPI_HOST" "
@@ -177,7 +189,13 @@ deploy_frontend() {
     cd ..
 
     info "部署前端到树莓派..."
-    rsync -avz -e "ssh $SSH_OPTS" --delete web-admin/dist/ "$RPI_HOST:$RPI_FRONTEND_DIR/"
+    if command -v rsync > /dev/null 2>&1; then
+        rsync -avz -e "ssh $SSH_OPTS" --delete web-admin/dist/ "$RPI_HOST:$RPI_FRONTEND_DIR/"
+    else
+        warn "rsync 未安装，使用 scp 作为备选..."
+        ssh $SSH_OPTS "$RPI_HOST" "rm -rf '$RPI_FRONTEND_DIR'/*"
+        scp -r -o RemoteCommand=none -o RequestTTY=no web-admin/dist/* "$RPI_HOST:$RPI_FRONTEND_DIR/"
+    fi
 
     # 重启前端服务
     ssh $SSH_OPTS "$RPI_HOST" "sudo systemctl restart $WEB_SERVICE && sudo systemctl status $WEB_SERVICE --no-pager"
